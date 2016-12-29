@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
 
 var apiURL = "https://dns.google.com/resolve"
@@ -26,17 +27,17 @@ type Response struct {
 	} `json:"Question"`
 
 	Answer []struct {
-		Name string `json:"name"`
-		Type int    `json:"type"`
-		TTL  int    `json:"TTL"`
-		Data string `json:"data"`
+		Name string        `json:"name"`
+		Type int           `json:"type"`
+		TTL  time.Duration `json:"TTL"`
+		Data string        `json:"data"`
 	} `json:"Answer"`
 
 	Authority []struct {
-		Name string `json:"name"`
-		Type int    `json:"type"`
-		TTL  int    `json:"TTL"`
-		Data string `json:"data"`
+		Name string        `json:"name"`
+		Type int           `json:"type"`
+		TTL  time.Duration `json:"TTL"`
+		Data string        `json:"data"`
 	} `json:"Authority"`
 
 	Additional       []interface{} `json:"Additional"`
@@ -80,6 +81,14 @@ func Query(host string, t string) (Response, error) {
 
 	response := Response{}
 	err = json.Unmarshal(resp, &response)
+
+	// scale TTL fields to seconds of duration instead of ns
+	for i := range response.Answer {
+		response.Answer[i].TTL *= time.Second
+	}
+	for i := range response.Authority {
+		response.Authority[i].TTL *= time.Second
+	}
 
 	if err != nil {
 		return Response{}, err
