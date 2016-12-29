@@ -5,11 +5,13 @@ import (
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"strings"
 )
 
 var apiURL = "https://dns.google.com/resolve"
 var ednsSubnet = "0.0.0.0/0"
 
+// Response from Google's DNS resolver
 type Response struct {
 	Status int  `json:"Status"`
 	TC     bool `json:"TC"`
@@ -50,7 +52,10 @@ func dig(host, recordType string) ([]byte, error) {
 	query := req.URL.Query()
 	query.Add("name", host)
 	query.Add("type", recordType)
-	query.Add("edns_client_subnet", ednsSubnet)
+	if len(ednsSubnet) > 0 { // while the default is to be anonymous, it's possible to unset this value via SetEDNSSubnet
+		query.Add("edns_client_subnet", ednsSubnet)
+	}
+	query.Add("random_padding", strings.Repeat("0", 253-len(host))) // pad domain name to 253 chars, effectively, to reduce a potential length-based side-channel attack/leak.
 
 	req.URL.RawQuery = query.Encode()
 
@@ -81,4 +86,12 @@ func Query(host string, t string) (Response, error) {
 	}
 
 	return response, nil
+}
+
+// SetEDNSSubnet sets the EDNS-CLIENT-SUBNET value for a potentially geolocation optimized response.
+// By default, this is "0.0.0.0/0" for better anonymity, as it would be easy for this feature to be abused by anyone in the lookup path.
+// If you set it to "", it will permit Google to use your apparent public IP address (with the last portion chopped off).
+// The format needs to be in slashed-subnet format, such as "127.1.2.3/24".
+func SetEDNSSubnet(subnet string) {
+	ednsSubnet = subnet
 }
